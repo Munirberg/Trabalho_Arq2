@@ -27,7 +27,7 @@
  */
 
 /**
- * This file contains the messages and other types for a simple MSI protocol.
+ * This file contains the messages and other types for a simple MESI protocol.
  *
  * The protocol in this file is based off of the MSI protocol found in
  * A Primer on Memory Consistency and Cache Coherence
