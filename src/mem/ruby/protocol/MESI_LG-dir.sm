@@ -91,6 +91,7 @@ machine(MachineType:Directory, "Directory protocol")
         // However, The access permissions are memory-centric.
         I, AccessPermission:Read_Write,  desc="Invalid in the caches.";
         S, AccessPermission:Read_Only,   desc="At least one cache has the blk";
+        E, AcessPermission:Exclusive,    desc="An only cache has the blk";
         M, AccessPermission:Invalid,     desc="A cache has the block in M";
 
         // Transient states
@@ -109,10 +110,12 @@ machine(MachineType:Directory, "Directory protocol")
         // Data requests from the cache
         GetS,         desc="Request for read-only data from cache";
         GetM,         desc="Request for read-write data from cache";
+        GetE,         desc="Request for read-only data from one cache";
 
         // Writeback requests from the cache
         PutSNotLast,  desc="PutS and the block has other sharers";
         PutSLast,     desc="PutS and the block has no other sharers";
+        PutE,         desc="PutE and the block has one sharer";
         PutMOwner,    desc="Dirty data writeback from the owner";
         PutMNonOwner, desc="Dirty data writeback from non-owner";
 
@@ -260,6 +263,13 @@ machine(MachineType:Directory, "Directory protocol")
                     } else {
                         trigger(Event:PutSNotLast, in_msg.addr);
                     }
+
+                } else if(int_msg.Type == CoherenceRequestType: GetE){
+                    trigger(Event: GetE, ins_msg.addr);
+                } else if(int_msg.Type == CoherenceRequestType: PutE){
+                    assert(is_valid(entry));
+                    assert(entry.Sharers.isElement(in_msg.Requestor));
+                    trigger(Event: PutE, in_msg.ddr);
                 } else if (in_msg.Type == CoherenceRequestType:PutM) {
                     assert(is_valid(entry));
                     if (entry.Owner.isElement(in_msg.Requestor)) {
