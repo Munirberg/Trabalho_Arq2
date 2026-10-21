@@ -306,41 +306,25 @@ machine(MachineType:L1Cache, "MESI cache")
                 Entry cache_entry := getCacheEntry(in_msg.addr);
                 TBE tbe := TBEs[in_msg.addr];
                 assert(is_valid(tbe));
-                if (machineIDToMachineType(in_msg.Sender) ==
-                            MachineType:Directory) {
-                    if(in_msg.Type == CoherenceResponseType:DataExclusive){
+                
+                if (machineIDToMachineType(in_msg.Sender) == MachineType:Directory) {
+                    if (in_msg.Type == CoherenceResponseType:DataExclusive) {
                         assert(in_msg.Acks + tbe.AcksOutstanding == 0);
                         trigger(Event:DataDirExclusive, in_msg.addr, cache_entry, tbe);
-                    }else if(in_msg.Type == CoherenceResponseType:Data){
-                        if(in_msg.Acks + tbe.AcksOutstanding == 0) {
+                    } else if (in_msg.Type == CoherenceResponseType:Data) {
+                        assert(in_msg.Acks + tbe.AcksOutstanding >= 0);
+                        if (in_msg.Acks + tbe.AcksOutstanding == 0) {
                             trigger(Event:DataDirNoAcks, in_msg.addr, cache_entry, tbe);
                         } else {
-                            trigger(Event: DataDirAcks, in_msg.addr, cache_entry, tbe);
+                            trigger(Event:DataDirAcks, in_msg.addr, cache_entry, tbe);
                         }
-                    }
-                    else{
-                        error("Directory should only reply with data or data exclusive");
-                    }
-
-                    }else if (in_msg.Type != CoherenceResponseType:Data) {
-                        error("Directory should only reply with data");
-                    }
-                   
-                    assert(in_msg.Acks + tbe.AcksOutstanding >= 0);
-                    if (in_msg.Acks + tbe.AcksOutstanding == 0) {
-                        trigger(Event:DataDirNoAcks, in_msg.addr, cache_entry,
-                                tbe);
                     } else {
-                        // If it's not 0, then we need to wait for more acks
-                        // and we'll trigger LastInvAck later.
-                        trigger(Event:DataDirAcks, in_msg.addr, cache_entry,
-                                tbe);
+                        error("Directory should only reply with data or data exclusive");
                     }
                 } else {
                     // This is from another cache.
                     if (in_msg.Type == CoherenceResponseType:Data) {
-                        trigger(Event:DataOwner, in_msg.addr, cache_entry,
-                                tbe);
+                        trigger(Event:DataOwner, in_msg.addr, cache_entry, tbe);
                     } else if (in_msg.Type == CoherenceResponseType:InvAck) {
                         DPRINTF(RubySlicc, "Got inv ack. %d left\n",
                                 tbe.AcksOutstanding);
@@ -696,28 +680,28 @@ machine(MachineType:L1Cache, "MESI cache")
     }
 
     transition(IS_D, DataExclusive, E){
-        writeDataExclusiveToCache;
+        writeDataToCache;
         deallocateTBE;
-        externalLoadhit;
+        externalLoadHit;
         popResponseQueue;
     }
 
     transition(E, Load){
-        externalLoadhit;
+        externalLoadHit;
     }
 
     transition(E, Store, M){
-        externalStorehit;
+        externalStoreHit;
     }
 
-    transition(E. FwdGetS, S){
-        sendCacheExclusiveDataToReq;
+    transition(E, FwdGetS, S){
+        sendCacheDataToReq;
         deallocateCacheBlock;
         popForwardQueue;
     }
 
     transition(E, FwdGetM, I){
-        sendCacheExclusiveDataToReq;
+        sendCacheDataToReq;
         deallocateCacheBlock;
         popForwardQueue;
     }
