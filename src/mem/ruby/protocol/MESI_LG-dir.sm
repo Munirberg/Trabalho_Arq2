@@ -46,19 +46,9 @@
 
 machine(MachineType:Directory, "Directory protocol")
     :
-      // This "DirectoryMemory" is a little weird. It is initially allocated
-      // so that it *can* cover all of memory (i.e., there are pointers for
-      // every 64-byte block in memory). However, the entries are lazily
-      // created in getDirEntry()
-      DirectoryMemory * directory;
-      // You can put any parameters you want here. They will be exported as
-      // normal SimObject parameters (like in the SimObject description file)
-      // and you can set these parameters at runtime via the python config
-      // file. If there is no default here (like directory), it is mandatory
-      // to set the parameter in the python config. Otherwise, it uses the
-      // default value set here.
+     
       Cycles toMemLatency := 1;
-
+      bool enable_exclusive := "True";
     // Forwarding requests from the directory *to* the caches.
     MessageBuffer *forwardToCache, network="To", virtual_network="1",
           vnet_type="forward";
@@ -81,17 +71,12 @@ machine(MachineType:Directory, "Directory protocol")
     MessageBuffer *responseFromMemory;
 
 {
-    // For many things in SLICC you can specify a default. However, this
-    // default must use the C++ name (mangled SLICC name). For the state below
-    // you have to use the controller name and the name we use for states.
     state_declaration(State, desc="Directory states",
                       default="Directory_State_I") {
-        // Stable states.
-        // NOTE: Thise are "cache-centric" states like in Sorin et al.
-        // However, The access permissions are memory-centric.
+        
         I, AccessPermission:Read_Write,  desc="Invalid in the caches.";
         S, AccessPermission:Read_Only,   desc="At least one cache has the blk";
-        E, AcessPermission:Exclusive,    desc="An only cache has the blk";
+        E, AccessPermission:Exclusive,   desc="An only cache has the blk";
         M, AccessPermission:Invalid,     desc="A cache has the block in M";
 
         // Transient states
@@ -100,22 +85,25 @@ machine(MachineType:Directory, "Directory protocol")
         // Waiting for data from memory
         S_m, AccessPermission:Read_Write, desc="In S waiting for mem";
         M_m, AccessPermission:Read_Write, desc="Moving to M waiting for mem";
+        E_m, AccessPermission:Read_Write, desc="GetS exclusivo, esperando a memória");
 
         // Waiting for write-ack from memory
         MI_m, AccessPermission:Busy,       desc="Moving to I waiting for ack";
         SS_m, AccessPermission:Busy,       desc="Moving to S waiting for ack";
+        
     }
 
     enumeration(Event, desc="Directory events") {
         // Data requests from the cache
         GetS,         desc="Request for read-only data from cache";
         GetM,         desc="Request for read-write data from cache";
-        GetE,         desc="Request for read-only data from one cache";
+        GetE,         desc="GetS sem compartilhadores nem dono";
 
         // Writeback requests from the cache
         PutSNotLast,  desc="PutS and the block has other sharers";
         PutSLast,     desc="PutS and the block has no other sharers";
-        PutE,         desc="PutE and the block has one sharer";
+        PutE,         desc="writeback from exclusive";
+        PutEOwner,    desc="Devolução limpa do dono";
         PutMOwner,    desc="Dirty data writeback from the owner";
         PutMNonOwner, desc="Dirty data writeback from non-owner";
 
@@ -248,28 +236,29 @@ machine(MachineType:Directory, "Directory protocol")
             peek(request_in, RequestMsg) {
                 Entry entry := getDirectoryEntry(in_msg.addr);
                 if (in_msg.Type == CoherenceRequestType:GetS) {
-                    // NOTE: Since we don't have a TBE in this machine, there
-                    // is no need to pass a TBE into trigger. Also, for the
-                    // directory there is no cache entry.
-                    trigger(Event:GetS, in_msg.addr);
+                    if(enable_exclusive && (entry.Owner.isGarbage() || is_invalid(entry.Owner)) && entry.Sharers.count() == 0){
+                        trigger(Event:GetE, in_msg.addr);
+                    }
+                    else{
+                        trigger(Event:GetS, in_msg.addr);
+                        }
+
                 } else if (in_msg.Type == CoherenceRequestType:GetM) {
                     trigger(Event:GetM, in_msg.addr);
                 } else if (in_msg.Type == CoherenceRequestType:PutS) {
                     assert(is_valid(entry));
-                    // If there is only a single sharer (i.e., the requestor)
                     if (entry.Sharers.count() == 1) {
                         assert(entry.Sharers.isElement(in_msg.Requestor));
                         trigger(Event:PutSLast, in_msg.addr);
                     } else {
                         trigger(Event:PutSNotLast, in_msg.addr);
                     }
-
-                } else if(int_msg.Type == CoherenceRequestType: GetE){
-                    trigger(Event: GetE, ins_msg.addr);
                 } else if(int_msg.Type == CoherenceRequestType: PutE){
-                    assert(is_valid(entry));
                     assert(entry.Sharers.isElement(in_msg.Requestor));
-                    trigger(Event: PutE, in_msg.ddr);
+                    if(is_invalid(entry.Owner)){
+                        trigger(Event: PutMNonOwner, in_msg.addr);
+                    }else if(is_valid(entry.Owner)){
+                        trigger(Event: PutEOwner, in_msg.addr);}
                 } else if (in_msg.Type == CoherenceRequestType:PutM) {
                     assert(is_valid(entry));
                     if (entry.Owner.isElement(in_msg.Requestor)) {
@@ -466,10 +455,40 @@ machine(MachineType:Directory, "Directory protocol")
         // Do nothing.
     }
 
+    action(sendExclusiveDataToReq, "dE", desc="Send exclusive data to requestor"){
+        peek(memQueue_in, MemoryMsg){
+            enqueue(response_out, ResponseMsg, 1){
+                  out_msg.addr := address;
+                out_msg.Type := CoherenceResponseType:DataExclusive;
+                out_msg.Sender := machineID;
+                out_msg.Destination.add(in_msg.OriginalRequestorMachId);
+                out_msg.DataBlk := in_msg.DataBlk;
+                out_msg.MessageSize := MessageSizeType:Data;
+                Entry e := getDirectoryEntry(address);
+                out_msg.Acks := 0;
+            }
+        }
+    }
+
+                
 
     /*************************************************************************/
     // transitions
 
+    transition(I, GetSExclusive, E_m){
+        sendMemRead;
+        setOwner;
+        popRequestQueue;
+    }
+
+    transition(E_m, MemData, M){
+        sendExclusiveDataToReq;
+        popMemQueue;
+    }
+
+
+    
+    
     transition({I, S}, GetS, S_m) {
         sendMemRead;
         addReqToSharers;
@@ -570,8 +589,11 @@ machine(MachineType:Directory, "Directory protocol")
 
     // If we get another request for a block that's waiting on memory,
     // stall that request.
-    transition({MI_m, SS_m, S_m, M_m}, {GetS, GetM}) {
+    transition({MI_m, SS_m, S_m, M_m, E_m}, {GetS, GetM, GetSExclusive}) {
         stall;
     }
-
+    
+    transition(E_m, {PutSNotLast, PutSLast, PutMNonOwner}) {
+    sendPutAck;
+    popRequestQueue;
 }
