@@ -41,7 +41,7 @@
  */
 
 /// Declare a machine with type L1Cache.
-machine(MachineType:L1Cache, "MSI cache")
+machine(MachineType:L1Cache, "MESI cache")
     : Sequencer *sequencer; // Incoming request from CPU come from this
       CacheMemory *cacheMemory; // This stores the data and cache states
       bool send_evictions; // Needed to support O3 CPU and mwait
