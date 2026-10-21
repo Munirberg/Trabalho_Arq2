@@ -1,0 +1,4 @@
+Eprotocol "MESI";
+include "MESI_LG-msg.sm";
+include "MESI_LG-cache.sm";
+include "MESI_LG-dir.sm";
