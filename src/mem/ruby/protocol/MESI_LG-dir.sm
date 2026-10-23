@@ -564,6 +564,13 @@ machine(MachineType:Directory, "Directory protocol")
         popRequestQueue;
     }
 
+    transition(M, PutEOwner, I){
+        clearOwner;
+        sendPutAck;
+        popRequestQueue;
+        }
+
+
     transition(MI_m, MemAck, I) {
         popMemQueue;
     }
