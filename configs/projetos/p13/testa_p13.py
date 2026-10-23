@@ -6,7 +6,8 @@ from mem.SimpleMemory import SimpleMemory
 from sim.ClockDomain import SrcClockDomain
 from m5.util import addToPath
 
-addToPath("../../learning_gem5/part3")
+addToPath("learning_gem5/part3")
+addToPath("configs/projetos/p13")
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--protocol", choices=["MSI", "MESI_LG"], default="MESI_LG")

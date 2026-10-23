@@ -34,15 +34,13 @@ IMPORTANT: If you modify this file, it's likely that the Learning gem5 book
 
 """
 
-from msi_caches import (
-    DirController,
-    L1Cache,
-    MyNetwork,
-)
-
 from m5.defines import buildEnv
 from m5.objects import *
 from m5.util import fatal
+from m5.util import addToPath
+
+addToPath("configs/projetos/p13")
+addToPath("learning_gem5/part3")
 
 
 class TestCacheSystem(RubySystem):
@@ -58,6 +56,11 @@ class TestCacheSystem(RubySystem):
 
         super().__init__()
 
+        # Guarda os parâmetros para uso posterior no setup()
+        self.protocol = protocol
+        self.l1_size = l1_size
+        self.enable_exclusive = enable_exclusive
+
     def setup(self, system, tester, mem_ctrls):
         """Set up the Ruby cache subsystem. Note: This can't be done in the
         constructor because many of these items require a pointer to the
@@ -69,9 +72,9 @@ class TestCacheSystem(RubySystem):
         num_testers = tester.num_cpus
 
         if self.protocol == "MSI":
-            from msi_caches import L1Cache, DirController
+            from msi_caches import L1Cache, DirController, MyNetwork
         else:
-            from mesi_caches import L1Cache, DirController
+            from mesi_caches import L1Cache, DirController, MyNetwork
 
         # Ruby's global network.
         self.network = MyNetwork(self)
