@@ -46,9 +46,15 @@ from m5.util import fatal
 
 
 class TestCacheSystem(RubySystem):
-    def __init__(self):
-        if not "RUBY_PROTOCOL_MSI" in buildEnv:
-            fatal("This system assumes MSI from learning gem5!")
+    def __init__(self, protocol="MSI", l1_size="16KiB", enable_exclusive=True):
+        if protocol == "MSI":
+            if "RUBY_PROTOCOL_MSI" not in buildEnv:
+                fatal("Este sistema exige o protocolo MSI!")
+        elif protocol == "MESI_LG":
+            if "RUBY_PROTOCOL_MESI_LG" not in buildEnv:
+                fatal("Este sistema exige o protocolo MESI_LG!")
+        else:
+            fatal(f"Protocolo desconhecido: {protocol}")
 
         super().__init__()
 
@@ -62,6 +68,11 @@ class TestCacheSystem(RubySystem):
         """
         num_testers = tester.num_cpus
 
+        if self.protocol == "MSI":
+            from msi_caches import L1Cache, DirController
+        else:
+            from mesi_caches import L1Cache, DirController
+
         # Ruby's global network.
         self.network = MyNetwork(self)
 
@@ -69,9 +80,19 @@ class TestCacheSystem(RubySystem):
         self.number_of_virtual_networks = 3
         self.network.number_of_virtual_networks = 3
 
-        self.controllers = [
-            L1Cache(system, self, self) for i in range(num_testers)
-        ] + [DirController(self, system.mem_ranges, mem_ctrls)]
+        l1_controllers = [
+            L1Cache(system, self, self) for i in range(num_testers)]
+
+        # Aplica o tamanho de L1 solicitado pelo testador
+        for controller in l1_controllers:
+            controller.cacheMemory.size = self.l1_size
+
+        if self.protocol == "MSI":
+            dir_controller = DirController(self, system.mem_ranges, mem_ctrls)
+        else:
+            dir_controller = DirController(self, system.mem_ranges, mem_ctrls, enable_exclusive=self.enable_exclusive)
+
+        self.controllers = l1_controllers + [dir_controller]
 
         self.sequencers = [
             RubySequencer(

@@ -4,9 +4,12 @@ from m5.objects import *
 from m5.params.param_types import AddrRange
 from mem.SimpleMemory import SimpleMemory
 from sim.ClockDomain import SrcClockDomain
+from m5.util import addToPath
+
+addToPath("../../learning_gem5/part3")
 
 ap = argparse.ArgumentParser()
-ap.add_argument("--protocol", choices=["MSI", "MESILG"], default="MESI_LG")
+ap.add_argument("--protocol", choices=["MSI", "MESI_LG"], default="MESI_LG")
 ap.add_argument("--exclusive", choices=["on", "off"], default="on")
 ap.add_argument("--ports", type=int, default=4)
 ap.add_argument("--checks", type=int, default=100000)
@@ -34,9 +37,12 @@ system.mem_ctrl.range = system.mem_ranges[0]
 system.tester = RubyTester(checks_to_complete=args.checks,
 wakeup_frequency=10, num_cpus=args.ports)
 
-# TODO(aluno): sistema Ruby de teste do protocolo escolhido, derivado de
-# test_caches.py, com L1 de tamanho args.l1_size e, no
-# MESI_LG, enable_exclusive=(args.exclusive == "on").
+# Seleciona e configura o sistema Ruby para o protocolo escolhido
+from test_caches import TestCacheSystem
+
+system.caches = TestCacheSystem(protocol=args.protocol, l1_size=args.l1_size, enable_exclusive=(args.exclusive == "on"))
+
+system.caches.setup(system, system.tester, [system.mem_ctrl])
 
 root = Root(full_system=False, system=system)
 m5.instantiate()
