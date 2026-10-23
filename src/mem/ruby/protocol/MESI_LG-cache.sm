@@ -478,7 +478,7 @@ machine(MachineType:L1Cache, "MESI cache")
     }
 
     // falta colocar algo de ação de controle sla
-    action(sendPutE, "pE", desc"Send PutE to the directory"){
+    action(sendPutE, "pE", desc="Send PutE to the directory"){
         enqueue(request_out, RequestMsg, 1){
             out_msg.addr := address;
             out_msg.Type := CoherenceRequestType:PutE;
@@ -719,11 +719,10 @@ machine(MachineType:L1Cache, "MESI cache")
         popForwardQueue;
     }
 
-    //revisar
     transition(E, Replacement, MI_A){
-        sendPutE;
-        popForwardQueue;
-    }
+    sendPutE;
+    forwardEviction; 
+}
 
 
     transition(I, Store, IM_AD) {
@@ -750,12 +749,9 @@ machine(MachineType:L1Cache, "MESI cache")
         popResponseQueue;
     }
 
-    //revisar tambem
+  
     transition(IS_D, {FwdGetS, FwdGetM}){
-        riteDataToCache;
-        deallocateTBE;
-        externalLoadHit;
-        popResponseQueue;
+        stall;
     }
 
     transition({IM_AD, IM_A}, {Load, Store, Replacement, FwdGetS, FwdGetM}) {
