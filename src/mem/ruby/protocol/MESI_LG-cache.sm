@@ -477,6 +477,19 @@ machine(MachineType:L1Cache, "MESI cache")
         }
     }
 
+    // falta colocar algo de ação de controle sla
+    action(sendPutE, "pE", desc"Send PutE to the directory"){
+        enqueue(request_out, RequestMsg, 1){
+            out_msg.addr := address;
+            out_msg.Type := CoherenceRequestType:PutE;
+            out_msg.Destination.add(mapAddressToMachine(address,
+                                    MachineType:Directory));
+            out_msg.MessageSize := MessageSizeType:Control;
+            out_msg.Requestor := machineID;
+        }
+    }
+
+
     action(sendPutM, "pM", desc="Send putM+data to the directory") {
         enqueue(request_out, RequestMsg, 1) {
             out_msg.addr := address;
@@ -706,6 +719,11 @@ machine(MachineType:L1Cache, "MESI cache")
         popForwardQueue;
     }
 
+    //revisar
+    transition(E, Replacement, MI_A){
+        sendPutE;
+        popForwardQueue;
+    }
 
 
     transition(I, Store, IM_AD) {
@@ -727,6 +745,14 @@ machine(MachineType:L1Cache, "MESI cache")
     // Similarly, on either DataDirNoAcks or DataOwner we should go to S
     transition(IS_D, {DataDirNoAcks, DataOwner}, S) {
         writeDataToCache;
+        deallocateTBE;
+        externalLoadHit;
+        popResponseQueue;
+    }
+
+    //revisar tambem
+    transition(IS_D, {FwdGetS, FwdGetM}){
+        riteDataToCache;
         deallocateTBE;
         externalLoadHit;
         popResponseQueue;
@@ -806,7 +832,7 @@ machine(MachineType:L1Cache, "MESI cache")
     transition(M, Replacement, MI_A) {
         sendPutM;
     }
-
+    
     transition(M, FwdGetS, S) {
         sendCacheDataToReq;
         sendCacheDataToDir;
@@ -828,7 +854,7 @@ machine(MachineType:L1Cache, "MESI cache")
         sendCacheDataToDir;
         popForwardQueue;
     }
-
+    
     transition(MI_A, FwdGetM, II_A) {
         sendCacheDataToReq;
         popForwardQueue;
