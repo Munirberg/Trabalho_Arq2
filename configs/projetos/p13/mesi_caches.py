@@ -50,7 +50,7 @@ class MyCacheSystem(RubySystem):
             fatal("Esse sistema exige o protocolo MESI_LG (Projeto13)")
 
         super().__init__()
-        self.enable_exclusive = enable_exclusive
+        self._enable_exclusive = enable_exclusive
         # ... setup() igual ao original; a partir da etapa 2, repassar
         # self._enable_exclusive ao DirController.
 
@@ -75,7 +75,7 @@ class MyCacheSystem(RubySystem):
         # Create one controller for each L1 cache (and the cache mem obj.)
         # Create a single directory controller (Really the memory cntrl)
         self.controllers = [L1Cache(system, self, cpu) for cpu in cpus] + [
-            DirController(self, system.mem_ranges, mem_ctrls)
+            DirController(self, system.mem_ranges, mem_ctrls, enable_exclusive=self._enable_exclusive)
         ]
 
         # Create one sequencer per CPU. In many systems this is more
@@ -189,11 +189,11 @@ class DirController(MESI_LG_Directory_Controller):
         cls._version += 1  # Use count for this particular type
         return cls._version - 1
 
-    def __init__(self, ruby_system, ranges, mem_ctrls):
+    def __init__(self, ruby_system, ranges, mem_ctrls, enable_exclusive=True):
         """ranges are the memory ranges assigned to this controller."""
         if len(mem_ctrls) > 1:
             panic("This cache system can only be connected to one mem ctrl")
-        super().__init__()
+        super().__init__(enable_exclusive=enable_exclusive)
         self.version = self.versionCount()
         self.addr_ranges = ranges
         self.ruby_system = ruby_system

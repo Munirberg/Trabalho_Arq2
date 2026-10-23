@@ -1,6 +1,9 @@
 import argparse
 import m5
 from m5.objects import *
+from m5.params.param_types import AddrRange
+from mem.SimpleMemory import SimpleMemory
+from sim.ClockDomain import SrcClockDomain
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--protocol", choices=["MSI", "MESILG"], default="MESI_LG")
@@ -15,10 +18,22 @@ m5.core.seedRandom(args.seed)
 
 system = System()
 
-# TODO(aluno): relógio, mem_mode="timing", faixa de memória e
-# SimpleMemory, como em ruby_test.py.
+# Set the clock frequency of the system (and all of its children)
+system.clk_domain = SrcClockDomain()
+system.clk_domain.clock = "1GHz"
+system.clk_domain.voltage_domain = VoltageDomain()
+
+# Set up the system
+system.mem_mode = "timing"  # Use timing accesses
+system.mem_ranges = [AddrRange("512MiB")]  # Create an address range
+
+# Create a simple memory controller and connect it to the membus
+system.mem_ctrl = SimpleMemory(latency="50ns", bandwidth="0GiB/s")
+system.mem_ctrl.range = system.mem_ranges[0]
+
 system.tester = RubyTester(checks_to_complete=args.checks,
 wakeup_frequency=10, num_cpus=args.ports)
+
 # TODO(aluno): sistema Ruby de teste do protocolo escolhido, derivado de
 # test_caches.py, com L1 de tamanho args.l1_size e, no
 # MESI_LG, enable_exclusive=(args.exclusive == "on").
